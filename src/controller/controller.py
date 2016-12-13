@@ -2,8 +2,7 @@ import wx
 from src.model import model
 from src.view import view
 import constants as cst
-import numpy as np
-
+import wx.aui
 
 class Controller(wx.Frame):
     def __init__(self, *args, **kwargs):
@@ -14,7 +13,6 @@ class Controller(wx.Frame):
         """
 
         wx.Frame.__init__(self, parent=None, title="Image manipulator", *args, **kwargs)
-
         self.create_menubar()
 
         # Initializing instance of framework
@@ -23,13 +21,11 @@ class Controller(wx.Frame):
         # Creating canvas
         self.list_canvas = []
         self.notebook = NotebookCanvas(self, self)
-
         # Creating tool window
-
         self.tool = ToolWindow(self)
+
+
         self.Layout()
-
-
         self.Maximize()
         self.Show(True)
 
@@ -38,7 +34,6 @@ class Controller(wx.Frame):
         filemenu = wx.Menu()
         # wx.ID_ABOUT and wx.ID_EXIT are standard IDs provided by wxWidgets.
         menuAbout = filemenu.Append(wx.ID_ABOUT, "About", "Information about this program")
-
         filemenu.AppendSeparator()
 
         open_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_MENU)
@@ -66,7 +61,8 @@ class Controller(wx.Frame):
         self.Bind(wx.EVT_MENU, self.on_open, menuOpen)
         self.Bind(wx.EVT_MENU, self.on_exit, menuExit)
 
-    def call_warning(self, warning_attribute):
+    @staticmethod
+    def call_warning(warning_attribute):
         """
         This function is called every time a warning or error message is triggered
         Each warning is defined by its signature. Each signature will call a specific function.
@@ -162,24 +158,19 @@ class CanvasPanel(wx.Panel):
         self.scrollable_panel.Show(True)
 
 
-class NotebookCanvas(wx.Notebook):
+class NotebookCanvas(wx.aui.AuiNotebook):
     def __init__(self, parent, controller, *args, **kwargs):
         self.c = controller
 
         screen_size = wx.GetDisplaySize()
-        wx.Notebook.__init__(self, parent, id=wx.ID_ANY, size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)),
-                             style=
-                             wx.BK_DEFAULT,
-                             # wx.BK_TOP
-                             # wx.BK_BOTTOM
-                             # wx.BK_LEFT
-                             # wx.BK_RIGHT)
+        wx.aui.AuiNotebook.__init__(self, parent, id=wx.ID_ANY, size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)),
+                             style=wx.aui.AUI_NB_CLOSE_ON_ACTIVE_TAB,
                              *args, **kwargs)
 
         self.il = wx.ImageList(16, 16)
         self.AssignImageList(self.il)
-        self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onpagechanged)
-        self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.onpagechanging)
+        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.onpagechanged)
+        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGING , self.onpagechanging)
         self.Bind(wx.EVT_MIDDLE_DOWN, self.on_middle_click)
 
     def onpagechanged(self, event):
@@ -200,6 +191,7 @@ class NotebookCanvas(wx.Notebook):
 
     def on_middle_click(self, event):
         """right-click event handler"""
+        print 'here'
 
         mousePos = event.GetPosition()
         pageIdx, other = self.HitTest(mousePos)
@@ -214,16 +206,13 @@ class ToolWindow(wx.Frame):
         A lateral window, which contains most of the quick access to tools.
         By default, the size of this window is defined as a fraction of the main window. This fraction is precised in
         the constants.py package.
-
-        The default behaviour is to put this window always on top.
+        The default behaviour is to put this window always on top of the parent.
 
 
         The frame contains a notebook panel, each tab corresponding to a particular option.
         :param parent:
         :param args:
         :param kwargs:
-
-        .. todo:: Correct the window behaviour: it should be on top of the main window, but only of the current app.
         .. todo:: There should be the possibility to close and re-open this window
 
         """
@@ -231,7 +220,7 @@ class ToolWindow(wx.Frame):
         wx.Frame.__init__(self, parent=parent,
                           size=(width * cst.TOOL_WINDOW__WIDTH_RATIO, height * cst.TOOL_WINDOW__HEIGHT_RATIO),
                           title='Tools',
-                          style=wx.STAY_ON_TOP | wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
+                          style=wx.FRAME_FLOAT_ON_PARENT | wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
                           *args, **kwargs)
 
         self.SetPosition((width - 2 * (width * cst.TOOL_WINDOW__WIDTH_RATIO), height / 8))
@@ -272,7 +261,7 @@ class ToolWindow(wx.Frame):
             wx.Panel.__init__(self, parent)
             self.SetBackgroundColour('white')
             self.sizer = wx.BoxSizer(wx.HORIZONTAL)
-            self.show_button = wx.Button(self, label=title, size=(30, 30))
+            self.show_button = wx.ToggleButton(self, label=title, size=(30, 30))
             self.bmp = wx.BitmapFromBuffer(img.shape[1], img.shape[0], img)
             self.imageBitmap = wx.StaticBitmap(self, wx.ID_ANY, self.bmp)
             self.sizer.Add(self.show_button, 1, wx.ALL, 5)

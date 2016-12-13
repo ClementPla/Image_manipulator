@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 from src.controller import constants as cst
 
-
+import wx.lib.statbmp
 
 class ScrollableImage(wx.ScrolledWindow):
     def __init__(self, parent, size, *args, **kwargs):
@@ -32,7 +32,7 @@ class ScrollableImage(wx.ScrolledWindow):
 
         height, width = image.shape[:2]
         self.bmp = wx.BitmapFromBuffer(width, height, image)
-        self.imageBitmap = wx.StaticBitmap(self, wx.ID_ANY, self.bmp)
+        self.imageBitmap = wx.lib.statbmp.GenStaticBitmap(self, wx.ID_ANY, self.bmp)
         self.sc_sizer = wx.BoxSizer(wx.VERTICAL)
         self.sc_sizer.AddStretchSpacer()
         self.sc_sizer.Add(self.imageBitmap, 0, wx.CENTER)
