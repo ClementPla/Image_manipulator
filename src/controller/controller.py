@@ -14,13 +14,44 @@ class Controller(wx.Frame):
         """
 
         wx.Frame.__init__(self, parent=None, title="Image manipulator", *args, **kwargs)
+
+        self.create_menubar()
+
+        # Initializing instance of framework
+        self.model = model.Model(self)
+
+        # Creating canvas
+        self.list_canvas = []
+        self.notebook = NotebookCanvas(self, self)
+
+        # Creating tool window
+
+        self.tool = ToolWindow(self)
+        self.Layout()
+
+
+        self.Maximize()
+        self.Show(True)
+
+    def create_menubar(self):
+
         filemenu = wx.Menu()
         # wx.ID_ABOUT and wx.ID_EXIT are standard IDs provided by wxWidgets.
         menuAbout = filemenu.Append(wx.ID_ABOUT, "About", "Information about this program")
+
         filemenu.AppendSeparator()
-        menuOpen = filemenu.Append(wx.ID_ABOUT, "Open image...", "")
+
+        open_bmp = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_MENU)
+        menuOpen = wx.MenuItem(parentMenu=filemenu, id=wx.ID_OPEN, text="Open image...", kind=wx.ITEM_NORMAL)
+        menuOpen.SetBitmap(open_bmp)
+        filemenu.AppendItem(menuOpen)
+
         filemenu.AppendSeparator()
-        menuExit = filemenu.Append(wx.ID_EXIT, "Exit", "Terminate the program")
+
+        exit_bmp = wx.ArtProvider.GetBitmap(wx.ART_CLOSE, wx.ART_MENU)
+        menuExit = wx.MenuItem(parentMenu=filemenu, id=wx.ID_EXIT)
+        menuExit.SetBitmap(exit_bmp)
+        filemenu.AppendItem(menuExit)
 
         # Setting up the edit menu.
         editmenu = wx.Menu()
@@ -30,79 +61,57 @@ class Controller(wx.Frame):
         menuBar.Append(filemenu, "File")  # Adding the "filemenu" to the MenuBar
         menuBar.Append(editmenu, "Edit")
         self.SetMenuBar(menuBar)  # Adding the MenuBar to the Frame content.
-
-        # Initializing instance of framework
-        self.model = model.Model(self)
-        self.view = view.View(self)
-
-        # Creating canvas
-        self.list_canvas = []
-        self.notebook = NotebookCanvas(self, self)
-        self.activeCanvas = 0
-
-        # Creating tool window
-
-        self.tool = ToolWindow(self)
-        self.Layout()
-
         # Bind on event
-        self.Bind(wx.EVT_MENU, self.OnAbout, menuAbout)
-        self.Bind(wx.EVT_MENU, self.OnOpen, menuOpen)
-        self.Bind(wx.EVT_MENU, self.OnExit, menuExit)
-        self.Maximize()
-        self.Show(True)
+        self.Bind(wx.EVT_MENU, self.on_about, menuAbout)
+        self.Bind(wx.EVT_MENU, self.on_open, menuOpen)
+        self.Bind(wx.EVT_MENU, self.on_exit, menuExit)
 
     def call_warning(self, warning_attribute):
         """
         This function is called every time a warning or error message is triggered
-        :param warning_attribute: The signature of the warning message. It should be an integer. The harsh table is defined in constants.py
+        Each warning is defined by its signature. Each signature will call a specific function.
+        :param warning_attribute: The signature of the warning message; integer. The harsh table is defined in constants.py
         :return:
         """
         def existing_image():
+            print "Warning ID: ", warning_attribute
             print 'Existing image will be erased'
             # Todo Implement a correct warning dialog and offer choice (erase or build a new window
 
-        def foo():
-            print "Not implemented"
-
-        def bar():
-            print "Not implemented"
-
         options = {0: existing_image,
-                   1: foo,
-                   2: bar
                    }
 
         options[warning_attribute]()
 
-    def OnAbout(self, e):
+    def on_about(self, e):
         # A message dialog box with an OK button. wx.OK is a standard ID in wxWidgets.
 
         dlg = wx.MessageDialog(self, "Started on a cold night, 11/16/2016", "About GraphSound", wx.OK)
         dlg.ShowModal()  # Show it
         dlg.Destroy()  # finally destroy it when finished.
 
-    def OnExit(self, e):
+    def on_exit(self, e):
         self.Close(True)  # Close the frame.
 
-    def OnOpen(self, e=None):
+    def on_open(self, e=None):
         """
             Open an image
         """
-        if self.model.currentFile['image'] is None:
+        if self.model.current_file['image'] is None:
             dlg = wx.FileDialog(self, "Choose a file", self.model.default_source, "", "*.*")
             if dlg.ShowModal() == wx.ID_OK:
-                self.model.currentFile['filename'] = dlg.GetFilename()
-                self.model.currentFile['dirname'] = dlg.GetDirectory()
+                self.model.current_file['filename'] = dlg.GetFilename()
+                self.model.current_file['dirname'] = dlg.GetDirectory()
                 self.model.openNewFile()
+                self.construct_new_canvas(self.model.current_file)
             dlg.Destroy()
         else:
             self.model.openNewFile()
 
-    def constructNewCanvas(self, image, name):
+    def construct_new_canvas(self, image_prop):
         """
         This function creates a new canvas, shown as a new tab in the notebook panel.
-        :param image:
+        :param image_prop: dictionary containing image's properties and model information (defined by the model)
         :param name:
         :return:
         .. todo: rename  the function in order to respect PEP-8
@@ -111,9 +120,9 @@ class Controller(wx.Frame):
         new_canvas = CanvasPanel(self.notebook, controller=self)
         self.list_canvas.append(new_canvas)
 
-        new_canvas.scrollable_panel.constructImageScrollable(image=image)
+        new_canvas.scrollable_panel.constructImageScrollable(image_prop)
 
-        self.notebook.AddPage(new_canvas, name, select=True)
+        self.notebook.AddPage(new_canvas, image_prop['filename'], select=True)
 
         # Construct the image icon visible on the tab
         idx1 = self.notebook.il.Add(new_canvas.scrollable_panel.icon_image)
@@ -125,8 +134,7 @@ class Controller(wx.Frame):
 class CanvasPanel(wx.Panel):
     def __init__(self, parent, controller, *args, **kwargs):
         """
-        This is by default the center panel, located in the center of the main frame. This panel contains a notebook panel,
-        each tab corresponding to a new image opened.
+        This is by default the center panel, located in the center of the main frame.
         This one containes a scrollable panel, which contains the image displayed.
         The definition of the scrollable panel class is given in the view package, as it concerned the displaying of the image
         :param parent:
@@ -172,13 +180,15 @@ class NotebookCanvas(wx.Notebook):
         self.AssignImageList(self.il)
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGED, self.onpagechanged)
         self.Bind(wx.EVT_NOTEBOOK_PAGE_CHANGING, self.onpagechanging)
-        self.Bind(wx.EVT_MIDDLE_DOWN, self.OnMClick)
+        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_middle_click)
 
     def onpagechanged(self, event):
         sel = self.GetSelection()
         self.c.activeCanvas = self.c.list_canvas[sel]
         chan_dict = self.c.activeCanvas.scrollable_panel.chan_image
         self.c.tool.build_chanel_selector(chan_dict)
+        self.c.model.current_file = self.c.list_canvas[sel].scrollable_panel.image_prop
+
         event.Skip()
 
     def onpagechanging(self, event):
@@ -188,7 +198,7 @@ class NotebookCanvas(wx.Notebook):
         print 'OnPageChanging, old:%d, new:%d, sel:%d\n' % (old, new, sel)
         event.Skip()
 
-    def OnMClick(self, event):
+    def on_middle_click(self, event):
         """right-click event handler"""
 
         mousePos = event.GetPosition()
@@ -201,7 +211,7 @@ class ToolWindow(wx.Frame):
 
     def __init__(self, parent, *args, **kwargs):
         """
-        A lateral window, which containes most of the quick access to tools.
+        A lateral window, which contains most of the quick access to tools.
         By default, the size of this window is defined as a fraction of the main window. This fraction is precised in
         the constants.py package.
 

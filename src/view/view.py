@@ -8,34 +8,6 @@ import numpy as np
 from src.controller import constants as cst
 
 
-class View:
-    def __init__(self, controller):
-        self.c = controller
-
-    def constructImageScrollable(self, frame):
-        # cv2.cvtColor(image, image, cv2.COLOR_BGR2RGB)
-        scrollpanel = self.c.mainCanvas.central_panel
-
-        height, width = frame.shape[:2]
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        bmp = wx.BitmapFromBuffer(width, height, frame)
-        imageBitmap = wx.StaticBitmap(scrollpanel, wx.ID_ANY, bmp)
-
-        self.sc_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sc_sizer.AddStretchSpacer()
-        self.sc_sizer.Add(imageBitmap, 0, wx.CENTER)
-        self.sc_sizer.AddStretchSpacer()
-
-        scrollpanel.SetSizer(self.sc_sizer)
-        scrollpanel.SetScrollbars(20, 20, height / 20, width / 20)
-        scrollpanel.Refresh()
-
-    def clearImage(self):
-        if self.sc_sizer.GetChildren():
-            self.sc_sizer.Hide(1)
-            self.sc_sizer.Remove(1)
-
 
 class ScrollableImage(wx.ScrolledWindow):
     def __init__(self, parent, size, *args, **kwargs):
@@ -45,45 +17,52 @@ class ScrollableImage(wx.ScrolledWindow):
         self.bmp = None
         self.imageBitmap = None
         self.icon_image = None
-        self.numpyImage = None
         self.chan_image = dict()
+        self.image_prop = dict()
 
-    def constructImageScrollable(self, image):
+    def constructImageScrollable(self, image_prop):
+        """
+        :param image_prop: dictionary containing image's properties and model information (defined by the model)
+        :return:
+        """
 
-        self.numpyImage = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        self.image_prop = image_prop
+        image = self.image_prop['image']
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         height, width = image.shape[:2]
-
-        self.bmp = wx.BitmapFromBuffer(width, height, self.numpyImage)
+        self.bmp = wx.BitmapFromBuffer(width, height, image)
         self.imageBitmap = wx.StaticBitmap(self, wx.ID_ANY, self.bmp)
         self.sc_sizer = wx.BoxSizer(wx.VERTICAL)
         self.sc_sizer.AddStretchSpacer()
         self.sc_sizer.Add(self.imageBitmap, 0, wx.CENTER)
         self.sc_sizer.AddStretchSpacer()
-
-
-
         self.SetSizer(self.sc_sizer)
         self.SetScrollbars(20, 20, height / 20, width / 20)
-        self.constructMiniatureChan()
+        self.construct_miniature_chan()
         self.Refresh()
 
-    def updateView(self):
-        frame = cv2.cvtColor(self.numpyImage, cv2.COLOR_BGR2RGB)
-        height, width = frame.shape[:2]
-
     def scale_bitmap(self, bitmap, width, height):
-
-
+        """
+        Do rescale of an image
+        :param bitmap:
+        :param width:
+        :param height:
+        :return:
+        """
         image = wx.ImageFromBitmap(bitmap)
         image = image.Scale(width, height, wx.IMAGE_QUALITY_HIGH)
-        result = wx.BitmapFromImage(image)
-        return result
+        return wx.BitmapFromImage(image)
 
-    def constructMiniatureChan(self):
-        if self.numpyImage.shape[2] == 3:
+    def construct_miniature_chan(self):
+        """
+        Builds a dictionary containing resized chanel (icon format) in form of a matrix.
+        :return:
+        """
+        img = self.image_prop['image']
+        if img.shape[2] == 3:
             size = cst.ICON_SIZE
-            img = cv2.resize(self.numpyImage, (size,size))
+            img = cv2.resize(img, (size,size))
 
             r_chan = np.zeros((size,size,3), dtype=np.uint8)
             r_chan[:,:,0] = img[:,:,0]
