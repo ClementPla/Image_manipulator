@@ -4,6 +4,7 @@ from src.view import view
 import constants as cst
 import wx.aui
 
+
 class Controller(wx.Frame):
     def __init__(self, *args, **kwargs):
         """
@@ -23,7 +24,6 @@ class Controller(wx.Frame):
         self.notebook = NotebookCanvas(self, self)
         # Creating tool window
         self.tool = ToolWindow(self)
-
 
         self.Layout()
         self.Maximize()
@@ -69,6 +69,7 @@ class Controller(wx.Frame):
         :param warning_attribute: The signature of the warning message; integer. The harsh table is defined in constants.py
         :return:
         """
+
         def existing_image():
             print "Warning ID: ", warning_attribute
             print 'Existing image will be erased'
@@ -113,13 +114,10 @@ class Controller(wx.Frame):
         .. todo: rename  the function in order to respect PEP-8
         """
 
-        new_canvas = CanvasPanel(self.notebook, controller=self)
+        new_canvas = view.CanvasPanel(self.notebook, controller=self)
         self.list_canvas.append(new_canvas)
-
         new_canvas.scrollable_panel.constructImageScrollable(image_prop)
-
         self.notebook.AddPage(new_canvas, image_prop['filename'], select=True)
-
         # Construct the image icon visible on the tab
         idx1 = self.notebook.il.Add(new_canvas.scrollable_panel.icon_image)
         self.notebook.SetPageImage(len(self.list_canvas) - 1, idx1)
@@ -127,53 +125,27 @@ class Controller(wx.Frame):
         self.Layout()
 
 
-class CanvasPanel(wx.Panel):
-    def __init__(self, parent, controller, *args, **kwargs):
-        """
-        This is by default the center panel, located in the center of the main frame.
-        This one containes a scrollable panel, which contains the image displayed.
-        The definition of the scrollable panel class is given in the view package, as it concerned the displaying of the image
-        :param parent:
-        :param controller:
-        :param args:
-        :param kwargs:
-
-        It should be surely interesting to have an attribute indicating which canvas is the active one
-        """
-        wx.Panel.__init__(self, parent, *args, **kwargs)
-
-        # Setting up the file menu.
-        self.c = controller
-
-        # Creating the scrollable panel
-        screen_size = wx.GetDisplaySize()
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        self.scrollable_panel = view.ScrollableImage(self, size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
-        self.scrollable_panel.SetBackgroundColour('white')
-        self.scrollable_panel.SetMinSize(tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
-        self.scrollable_panel.SetScrollbars(1, 1, 1, 1)
-        self.scrollable_panel.EnableScrolling(True, True)
-        sizer.Add(self.scrollable_panel, proportion=0, flag=wx.ALIGN_CENTER)
-        self.SetSizer(sizer)
-        self.scrollable_panel.Show(True)
-
-
 class NotebookCanvas(wx.aui.AuiNotebook):
+    """
+    todo surcharger la suppression d'un onglet
+    """
+
     def __init__(self, parent, controller, *args, **kwargs):
         self.c = controller
 
         screen_size = wx.GetDisplaySize()
-        wx.aui.AuiNotebook.__init__(self, parent, id=wx.ID_ANY, size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)),
-                             style=wx.aui.AUI_NB_CLOSE_ON_ACTIVE_TAB,
-                             *args, **kwargs)
+        wx.aui.AuiNotebook.__init__(self, parent, id=wx.ID_ANY,
+                                    size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)),
+                                    style=wx.aui.AUI_NB_CLOSE_ON_ACTIVE_TAB,
+                                    *args, **kwargs)
 
         self.il = wx.ImageList(16, 16)
         self.AssignImageList(self.il)
-        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.onpagechanged)
-        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGING , self.onpagechanging)
-        self.Bind(wx.EVT_MIDDLE_DOWN, self.on_middle_click)
+        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.on_page_changed)
+        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CHANGING, self.on_page_changing)
+        self.Bind(wx.aui.EVT_AUINOTEBOOK_PAGE_CLOSED, self.close)
 
-    def onpagechanged(self, event):
+    def on_page_changed(self, event):
         sel = self.GetSelection()
         self.c.activeCanvas = self.c.list_canvas[sel]
         chan_dict = self.c.activeCanvas.scrollable_panel.chan_image
@@ -182,25 +154,21 @@ class NotebookCanvas(wx.aui.AuiNotebook):
 
         event.Skip()
 
-    def onpagechanging(self, event):
+    def on_page_changing(self, event):
         old = event.GetOldSelection()
         new = event.GetSelection()
         sel = self.GetSelection()
         print 'OnPageChanging, old:%d, new:%d, sel:%d\n' % (old, new, sel)
         event.Skip()
 
-    def on_middle_click(self, event):
+    def close(self, event):
         """right-click event handler"""
-        print 'here'
-
-        mousePos = event.GetPosition()
-        pageIdx, other = self.HitTest(mousePos)
-        del self.c.list_canvas[pageIdx]
-        self.DeletePage(pageIdx)
+        index = event.GetSelection()
+        del self.c.list_canvas[index]
+        self.DeletePage(index)
 
 
 class ToolWindow(wx.Frame):
-
     def __init__(self, parent, *args, **kwargs):
         """
         A lateral window, which contains most of the quick access to tools.
@@ -220,11 +188,11 @@ class ToolWindow(wx.Frame):
         wx.Frame.__init__(self, parent=parent,
                           size=(width * cst.TOOL_WINDOW__WIDTH_RATIO, height * cst.TOOL_WINDOW__HEIGHT_RATIO),
                           title='Tools',
-                          style=wx.FRAME_FLOAT_ON_PARENT | wx.DEFAULT_FRAME_STYLE & ~(wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
+                          style=wx.FRAME_FLOAT_ON_PARENT | wx.DEFAULT_FRAME_STYLE & ~(
+                          wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
                           *args, **kwargs)
 
-        self.SetPosition((width - 2 * (width * cst.TOOL_WINDOW__WIDTH_RATIO), height / 8))
-
+        self.SetPosition((width - 4 * (width * cst.TOOL_WINDOW__WIDTH_RATIO), height / 8))
         self.notebookMenu = wx.Notebook(self, style=wx.BK_DEFAULT)
         self.notebookMenu.SetBackgroundColour('white')
         self.panelChanel = wx.Panel(self.notebookMenu)
@@ -266,6 +234,5 @@ class ToolWindow(wx.Frame):
             self.imageBitmap = wx.StaticBitmap(self, wx.ID_ANY, self.bmp)
             self.sizer.Add(self.show_button, 1, wx.ALL, 5)
             self.sizer.Add(self.imageBitmap, 0, wx.ALL, 5)
-
             self.SetSizer(self.sizer)
             self.Show(True)

@@ -11,7 +11,7 @@ import wx.lib.statbmp
 
 class ScrollableImage(wx.ScrolledWindow):
     def __init__(self, parent, size, *args, **kwargs):
-        wx.ScrolledWindow.__init__(self, parent=parent, size=size,style=wx.BORDER_RAISED, *args, **kwargs)
+        wx.ScrolledWindow.__init__(self, parent=parent, size=size,style=wx.BORDER_RAISED|wx.BG_STYLE_PAINT, *args, **kwargs)
 
         self.parent = parent
         self.bmp = None
@@ -19,6 +19,7 @@ class ScrollableImage(wx.ScrolledWindow):
         self.icon_image = None
         self.chan_image = dict()
         self.image_prop = dict()
+        self.user_scale = 2
 
     def constructImageScrollable(self, image_prop):
         """
@@ -32,15 +33,63 @@ class ScrollableImage(wx.ScrolledWindow):
 
         height, width = image.shape[:2]
         self.bmp = wx.BitmapFromBuffer(width, height, image)
-        self.imageBitmap = wx.lib.statbmp.GenStaticBitmap(self, wx.ID_ANY, self.bmp)
-        self.sc_sizer = wx.BoxSizer(wx.VERTICAL)
-        self.sc_sizer.AddStretchSpacer()
-        self.sc_sizer.Add(self.imageBitmap, 0, wx.CENTER)
-        self.sc_sizer.AddStretchSpacer()
-        self.SetSizer(self.sc_sizer)
+        # self.imageBitmap = wx.lib.statbmp.GenStaticBitmap(self, wx.ID_ANY, self.bmp)
+
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT|wx.NO_FULL_REPAINT_ON_RESIZE )
+
+
+        # self.sc_sizer = wx.BoxSizer(wx.VERTICAL)
+        # self.sc_sizer.AddStretchSpacer()
+        # # self.sc_sizer.Add(self.imageBitmap, 0, wx.CENTER)
+        # self.sc_sizer.AddStretchSpacer()
+        # self.SetSizer(self.sc_sizer)
         self.SetScrollbars(20, 20, height / 20, width / 20)
         self.construct_miniature_chan()
+        # self.Refresh()
+
+        self.Bind(wx.EVT_KEY_DOWN, self.test)
+        self.Bind(wx.EVT_PAINT, self.OnPaint)
+        self.Bind(wx.EVT_ERASE_BACKGROUND, self.EraseBG)
+
+    def EraseBG(self, evt):
+        pass
+
+    def OnPaint(self, evt):
+        """set up the device context (DC) for painting"""
+
+        self.Draw(wx.BufferedPaintDC(self, style=wx.BUFFER_VIRTUAL_AREA))
+
+    def Draw(self, dc):
+        dc.Clear()
+        dc.SetUserScale(self.user_scale, self.user_scale)
+        print self.user_scale
+        dc.DrawBitmap(self.bmp, 0,0)
+
+    def UpdateDrawing(self):
+        """
+        This would get called if the drawing needed to change, for whatever reason.
+
+        The idea here is that the drawing is based on some data generated
+        elsewhere in the system. If that data changes, the drawing needs to
+        be updated.
+
+        This code re-draws the buffer, then calls Update, which forces a paint event.
+        """
+        dc = wx.MemoryDC()
+        dc.SelectObject(self.bmp)
+        self.Draw(dc)
+        del dc  # need to get rid of the MemoryDC before Update() is called.
         self.Refresh()
+        self.Update()
+
+    def test(self, event):
+        if event.GetKeyCode() == 388:
+            self.user_scale = self.user_scale*2
+            self.UpdateDrawing()
+        if event.GetKeyCode() == 390:
+            self.user_scale = self.user_scale * 0.5
+            self.UpdateDrawing()
+        event.Skip()
 
     def scale_bitmap(self, bitmap, width, height):
         """
@@ -63,7 +112,6 @@ class ScrollableImage(wx.ScrolledWindow):
         if img.shape[2] == 3:
             size = cst.ICON_SIZE
             img = cv2.resize(img, (size,size))
-
             r_chan = np.zeros((size,size,3), dtype=np.uint8)
             r_chan[:,:,0] = img[:,:,0]
             g_chan = np.zeros((size, size, 3), dtype=np.uint8)
@@ -76,3 +124,33 @@ class ScrollableImage(wx.ScrolledWindow):
 
         self.icon_image = self.scale_bitmap((self.bmp), 20, 20)
 
+class CanvasPanel(wx.Panel):
+    def __init__(self, parent, controller, *args, **kwargs):
+        """
+        This is by default the center panel, located in the center of the main frame.
+        This one containes a scrollable panel, which contains the image displayed.
+        The definition of the scrollable panel class is given in the view package, as it concerned the displaying of the image
+        :param parent:
+        :param controller:
+        :param args:
+        :param kwargs:
+
+        It should be surely interesting to have an attribute indicating which canvas is the active one
+        """
+        wx.Panel.__init__(self, parent, *args, **kwargs)
+
+        # Setting up the file menu.
+        self.c = controller
+
+        # Creating the scrollable panel
+        screen_size = wx.GetDisplaySize()
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.scrollable_panel = ScrollableImage(self,
+                                                     size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
+        self.scrollable_panel.SetBackgroundColour('white')
+        self.scrollable_panel.SetMinSize(tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
+        self.scrollable_panel.SetScrollbars(1, 1, 1, 1)
+        self.scrollable_panel.EnableScrolling(True, True)
+        sizer.Add(self.scrollable_panel, proportion=0, flag=wx.ALIGN_CENTER)
+        self.SetSizer(sizer)
+        self.scrollable_panel.Show(True)
