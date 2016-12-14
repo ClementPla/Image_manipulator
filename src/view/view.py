@@ -9,9 +9,11 @@ from src.controller import constants as cst
 
 import wx.lib.statbmp
 
+
 class ScrollableImage(wx.ScrolledWindow):
     def __init__(self, parent, size, *args, **kwargs):
-        wx.ScrolledWindow.__init__(self, parent=parent, size=size,style=wx.BORDER_RAISED|wx.BG_STYLE_PAINT, *args, **kwargs)
+        wx.ScrolledWindow.__init__(self, parent=parent, size=size, style=wx.BORDER_RAISED | wx.BG_STYLE_PAINT, *args,
+                                   **kwargs)
 
         self.parent = parent
         self.bmp = None
@@ -19,7 +21,8 @@ class ScrollableImage(wx.ScrolledWindow):
         self.icon_image = None
         self.chan_image = dict()
         self.image_prop = dict()
-        self.user_scale = 2
+        self.user_scale = 1
+        self.img_size = tuple()
 
     def constructImageScrollable(self, image_prop):
         """
@@ -30,40 +33,37 @@ class ScrollableImage(wx.ScrolledWindow):
         self.image_prop = image_prop
         image = self.image_prop['image']
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
         height, width = image.shape[:2]
+        self.img_size = (height, width)
         self.bmp = wx.BitmapFromBuffer(width, height, image)
         # self.imageBitmap = wx.lib.statbmp.GenStaticBitmap(self, wx.ID_ANY, self.bmp)
 
-        self.SetBackgroundStyle(wx.BG_STYLE_PAINT|wx.NO_FULL_REPAINT_ON_RESIZE )
-
-
-        # self.sc_sizer = wx.BoxSizer(wx.VERTICAL)
-        # self.sc_sizer.AddStretchSpacer()
-        # # self.sc_sizer.Add(self.imageBitmap, 0, wx.CENTER)
-        # self.sc_sizer.AddStretchSpacer()
-        # self.SetSizer(self.sc_sizer)
+        self.SetBackgroundStyle(wx.BG_STYLE_PAINT | wx.NO_FULL_REPAINT_ON_RESIZE)
         self.SetScrollbars(20, 20, height / 20, width / 20)
         self.construct_miniature_chan()
-        # self.Refresh()
 
-        self.Bind(wx.EVT_KEY_DOWN, self.test)
+        self.Bind(wx.EVT_KEY_DOWN, self.zoom_scale)
         self.Bind(wx.EVT_PAINT, self.OnPaint)
-        self.Bind(wx.EVT_ERASE_BACKGROUND, self.EraseBG)
-
-    def EraseBG(self, evt):
-        pass
 
     def OnPaint(self, evt):
         """set up the device context (DC) for painting"""
+        dc = wx.BufferedPaintDC(self, style=wx.BUFFER_VIRTUAL_AREA)
+        dc.DestroyClippingRegion()
 
-        self.Draw(wx.BufferedPaintDC(self, style=wx.BUFFER_VIRTUAL_AREA))
+        #  Calculate visible region
+        size_region = self.GetSize()
+        view_start = self.CalcUnscrolledPosition(wx.Point(0, 0))
+        dc.SetClippingRegion(view_start[0], view_start[1], size_region[0],
+                             size_region[1])  # Clipping only the visible region
+        self.OnSize(dc) #  Adjust size based on the user scale factor
 
     def Draw(self, dc):
+        pass
+
+    def OnSize(self, dc):
         dc.Clear()
         dc.SetUserScale(self.user_scale, self.user_scale)
-        print self.user_scale
-        dc.DrawBitmap(self.bmp, 0,0)
+        dc.DrawBitmap(self.bmp, 0, 0)
 
     def UpdateDrawing(self):
         """
@@ -82,12 +82,15 @@ class ScrollableImage(wx.ScrolledWindow):
         self.Refresh()
         self.Update()
 
-    def test(self, event):
-        if event.GetKeyCode() == 388:
-            self.user_scale = self.user_scale*2
+    def zoom_scale(self, event):
+        if event.GetKeyCode() == 388: #  Corresponds to the '+' on an alpha-numeric keyboard
+            self.user_scale *= 1.5
+            self.SetScrollbars(20, 20, self.img_size[0] * self.user_scale / 20, self.img_size[1] * self.user_scale / 20)
             self.UpdateDrawing()
-        if event.GetKeyCode() == 390:
-            self.user_scale = self.user_scale * 0.5
+
+        if event.GetKeyCode() == 390: #  Corresponds to the '-' on an alpha-numeric keyboard
+            self.user_scale /= 1.5
+            self.SetScrollbars(20, 20, self.img_size[0] * self.user_scale / 20, self.img_size[1] * self.user_scale / 20)
             self.UpdateDrawing()
         event.Skip()
 
@@ -111,18 +114,19 @@ class ScrollableImage(wx.ScrolledWindow):
         img = self.image_prop['image']
         if img.shape[2] == 3:
             size = cst.ICON_SIZE
-            img = cv2.resize(img, (size,size))
-            r_chan = np.zeros((size,size,3), dtype=np.uint8)
-            r_chan[:,:,0] = img[:,:,0]
+            img = cv2.resize(img, (size, size))
+            r_chan = np.zeros((size, size, 3), dtype=np.uint8)
+            r_chan[:, :, 0] = img[:, :, 0]
             g_chan = np.zeros((size, size, 3), dtype=np.uint8)
             g_chan[:, :, 1] = img[:, :, 1]
-            b_chan = np.zeros((size,size,3), dtype=np.uint8)
-            b_chan[:,:,2] = img[:,:,2]
+            b_chan = np.zeros((size, size, 3), dtype=np.uint8)
+            b_chan[:, :, 2] = img[:, :, 2]
             self.chan_image['r_chan'] = r_chan
             self.chan_image['b_chan'] = b_chan
             self.chan_image['g_chan'] = g_chan
 
         self.icon_image = self.scale_bitmap((self.bmp), 20, 20)
+
 
 class CanvasPanel(wx.Panel):
     def __init__(self, parent, controller, *args, **kwargs):
@@ -146,9 +150,9 @@ class CanvasPanel(wx.Panel):
         screen_size = wx.GetDisplaySize()
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.scrollable_panel = ScrollableImage(self,
-                                                     size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
+                                                size=tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
         self.scrollable_panel.SetBackgroundColour('white')
-        self.scrollable_panel.SetMinSize(tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
+        # self.scrollable_panel.SetMinSize(tuple((i * cst.MAIN_PANEL_RATIO for i in screen_size)))
         self.scrollable_panel.SetScrollbars(1, 1, 1, 1)
         self.scrollable_panel.EnableScrolling(True, True)
         sizer.Add(self.scrollable_panel, proportion=0, flag=wx.ALIGN_CENTER)
