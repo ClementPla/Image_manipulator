@@ -17,12 +17,12 @@ class ScrollableImage(wx.ScrolledWindow):
 
         self.parent = parent
         self.bmp = None
-        self.imageBitmap = None
         self.icon_image = None
         self.chan_image = dict()
         self.image_prop = dict()
         self.user_scale = 1
         self.img_size = tuple()
+        self.chan_mask = None
 
     def constructImageScrollable(self, image_prop):
         """
@@ -32,6 +32,7 @@ class ScrollableImage(wx.ScrolledWindow):
 
         self.image_prop = image_prop
         image = self.image_prop['image']
+        self.chan_mask = np.ones(image.shape, dtype=np.uint8)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         height, width = image.shape[:2]
         self.img_size = (height, width)
@@ -40,7 +41,7 @@ class ScrollableImage(wx.ScrolledWindow):
 
         self.SetBackgroundStyle(wx.BG_STYLE_PAINT | wx.NO_FULL_REPAINT_ON_RESIZE)
         self.SetScrollbars(20, 20, height / 20, width / 20)
-        self.construct_miniature_chan()
+        self.construct_icon()
 
         self.Bind(wx.EVT_KEY_DOWN, self.zoom_scale)
         self.Bind(wx.EVT_PAINT, self.OnPaint)
@@ -55,9 +56,9 @@ class ScrollableImage(wx.ScrolledWindow):
         view_start = self.CalcUnscrolledPosition(wx.Point(0, 0))
         dc.SetClippingRegion(view_start[0], view_start[1], size_region[0],
                              size_region[1])  # Clipping only the visible region
-        self.OnSize(dc) #  Adjust size based on the user scale factor
+        self.OnSize(dc)  #  Adjust size based on the user scale factor
 
-    def Draw(self, dc):
+    def draw(self, dc):
         pass
 
     def OnSize(self, dc):
@@ -77,7 +78,7 @@ class ScrollableImage(wx.ScrolledWindow):
         """
         dc = wx.MemoryDC()
         dc.SelectObject(self.bmp)
-        self.Draw(dc)
+        self.draw(dc)
         del dc  # need to get rid of the MemoryDC before Update() is called.
         self.Refresh()
         self.Update()
@@ -96,7 +97,7 @@ class ScrollableImage(wx.ScrolledWindow):
 
     def scale_bitmap(self, bitmap, width, height):
         """
-        Do rescale of an image
+        Rescale a bitmap image to the given size
         :param bitmap:
         :param width:
         :param height:
@@ -106,12 +107,14 @@ class ScrollableImage(wx.ScrolledWindow):
         image = image.Scale(width, height, wx.IMAGE_QUALITY_HIGH)
         return wx.BitmapFromImage(image)
 
-    def construct_miniature_chan(self):
+    def construct_icon(self):
         """
         Builds a dictionary containing resized chanel (icon format) in form of a matrix.
         :return:
         """
         img = self.image_prop['image']
+
+        # Construct
         if img.shape[2] == 3:
             size = cst.ICON_SIZE
             img = cv2.resize(img, (size, size))
@@ -126,6 +129,28 @@ class ScrollableImage(wx.ScrolledWindow):
             self.chan_image['g_chan'] = g_chan
 
         self.icon_image = self.scale_bitmap((self.bmp), 20, 20)
+
+    def mask_chanel(self, chan):
+
+        if 0 in self.chan_mask[:,:,chan]:
+            self.chan_mask[:, :, chan] = 1
+        else:
+            self.chan_mask[:, :, chan] = 0
+        if 0 not in self.chan_mask:
+            image = self.image_prop['image']
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            height, width = image.shape[:2]
+            self.bmp = wx.BitmapFromBuffer(width, height, image)
+        else:
+            image = self.image_prop['image']
+            print image.shape
+
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) * self.chan_mask
+            print image.shape
+            height, width = image.shape[:2]
+            self.bmp = wx.BitmapFromBuffer(width, height, image)
+
+        self.UpdateDrawing()
 
 
 class CanvasPanel(wx.Panel):

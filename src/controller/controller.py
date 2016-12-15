@@ -23,7 +23,7 @@ class Controller(wx.Frame):
         self.list_canvas = []
         self.notebook = NotebookCanvas(self, self)
         # Creating tool window
-        self.tool = ToolWindow(self)
+        self.tool = ToolWindow(self, controller=self)
 
         self.Layout()
         self.Maximize()
@@ -151,7 +151,6 @@ class NotebookCanvas(wx.aui.AuiNotebook):
         chan_dict = self.c.activeCanvas.scrollable_panel.chan_image
         self.c.tool.build_chanel_selector(chan_dict)
         self.c.model.current_file = self.c.list_canvas[sel].scrollable_panel.image_prop
-
         event.Skip()
 
     def on_page_changing(self, event):
@@ -169,7 +168,7 @@ class NotebookCanvas(wx.aui.AuiNotebook):
 
 
 class ToolWindow(wx.Frame):
-    def __init__(self, parent, *args, **kwargs):
+    def __init__(self, parent, controller, *args, **kwargs):
         """
         A lateral window, which contains most of the quick access to tools.
         By default, the size of this window is defined as a fraction of the main window. This fraction is precised in
@@ -191,7 +190,7 @@ class ToolWindow(wx.Frame):
                           style=wx.FRAME_FLOAT_ON_PARENT | wx.DEFAULT_FRAME_STYLE & ~(
                           wx.RESIZE_BORDER | wx.MAXIMIZE_BOX),
                           *args, **kwargs)
-
+        self.c = controller
         self.SetPosition((width - 4 * (width * cst.TOOL_WINDOW__WIDTH_RATIO), height / 8))
         self.notebookMenu = wx.Notebook(self, style=wx.BK_DEFAULT)
         self.notebookMenu.SetBackgroundColour('white')
@@ -215,9 +214,10 @@ class ToolWindow(wx.Frame):
             widget = child.GetWindow()
             widget.Destroy()
 
-        r = self.ChanPanel(self.panelChanel, img=chan_dict['r_chan'], title='Red')
-        g = self.ChanPanel(self.panelChanel, img=chan_dict['g_chan'], title='Green')
-        b = self.ChanPanel(self.panelChanel, img=chan_dict['b_chan'], title='Blue')
+        r = self.ChanPanel(self.panelChanel, self.c, img=chan_dict['r_chan'], title='R', chan=0)
+        g = self.ChanPanel(self.panelChanel, self.c, img=chan_dict['g_chan'], title='G', chan=1)
+        b = self.ChanPanel(self.panelChanel, self.c, img=chan_dict['b_chan'], title='B', chan=2)
+
         self.topsizer.Add(r, 0, wx.ALL | wx.EXPAND, 5)
         self.topsizer.Add(g, 0, wx.ALL | wx.EXPAND, 5)
         self.topsizer.Add(b, 0, wx.ALL | wx.EXPAND, 5)
@@ -225,14 +225,29 @@ class ToolWindow(wx.Frame):
         self.panelChanel.Layout()
 
     class ChanPanel(wx.Panel):
-        def __init__(self, parent, img, title):
+        def __init__(self, parent, controller, img, title, chan):
             wx.Panel.__init__(self, parent)
+            self.chan = chan
+            self.c =  controller
             self.SetBackgroundColour('white')
             self.sizer = wx.BoxSizer(wx.HORIZONTAL)
             self.show_button = wx.ToggleButton(self, label=title, size=(30, 30))
+
+            if 0 in self.c.activeCanvas.scrollable_panel.chan_mask[:,:,chan]:
+                self.show_button.SetValue(True)
             self.bmp = wx.BitmapFromBuffer(img.shape[1], img.shape[0], img)
             self.imageBitmap = wx.StaticBitmap(self, wx.ID_ANY, self.bmp)
             self.sizer.Add(self.show_button, 1, wx.ALL, 5)
             self.sizer.Add(self.imageBitmap, 0, wx.ALL, 5)
             self.SetSizer(self.sizer)
             self.Show(True)
+            self.show_button.Bind(wx.EVT_TOGGLEBUTTON, self.press_button)
+
+
+        def press_button(self, event):
+            self.c.activeCanvas.scrollable_panel.mask_chanel(self.chan)
+
+
+
+
+
